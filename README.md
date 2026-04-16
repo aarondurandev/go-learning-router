@@ -24,6 +24,8 @@ See [_examples/](_examples/) for working code.
 - Groups can be nested — a nested group prepends both prefixes automatically.
 - `*Mux` satisfies `http.Handler` directly, so it can be passed to `http.ListenAndServe` without any wrapping.
 - Wildcard routes use a trailing `*` segment (`/files/*`) and match the rest of the path regardless of depth. The captured tail is retrieved with `URLParam(r, "*")`.
+- `RedirectTrailingSlash` (default `true`) — a request to `/users/` redirects (301) to `/users` (and vice versa) if a matching route exists at the alternate path. Set to `false` to disable.
+- `Route(pattern)` returns a `RouteBuilder` that supports method chaining — `m.Route("/users").Get(h).Post(h)` registers multiple methods on the same pattern in one expression.
 
 ## Roadmap
 
@@ -34,3 +36,5 @@ See [_examples/](_examples/) for working code.
 - [x] Subrouters / route groups
 - [x] Tests
 - [x] Wildcards (`/files/*`)
+- [x] Trailing slash redirect
+- [x] Method chaining

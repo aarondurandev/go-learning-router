@@ -23,10 +23,13 @@ type Route struct {
 
 // Mux is the router. It stores registered routes and dispatches
 // incoming requests to the appropriate handler.
+// RedirectTrailingSlash is true by default: requests with a mismatched trailing
+// slash are redirected (301) to the alternate path when a matching route exists there.
 type Mux struct {
-	routes          []Route
-	notFoundHandler http.HandlerFunc
-	middlewares     []func(http.Handler) http.Handler
+	routes                []Route
+	notFoundHandler       http.HandlerFunc
+	middlewares           []func(http.Handler) http.Handler
+	RedirectTrailingSlash bool
 }
 
 // group is a set of routes sharing a common prefix and middleware stack.
@@ -115,12 +118,29 @@ func (mx *Mux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if matchFound == true {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	} else {
+		// If RedirectTrailingSlash is enabled, try the path with the slash toggled.
+		// If a route matches the alternate path, redirect the client there (301).
+		var altPath string
+		if strings.HasSuffix(r.URL.Path, "/") {
+			altPath = r.URL.Path[:len(r.URL.Path)-1]
+		} else {
+			altPath = r.URL.Path + "/"
+		}
+		if mx.RedirectTrailingSlash && altPath != "" {
+			for _, route := range mx.routes {
+				if matched, _ := matchPath(route.pattern, altPath); matched {
+					http.Redirect(w, r, altPath, http.StatusMovedPermanently)
+					return
+				}
+			}
+		}
 		if mx.notFoundHandler != nil {
 			mx.notFoundHandler(w, r)
 		} else {
 			http.NotFound(w, r)
 		}
 	}
+
 }
 
 // URLParam returns the value of the URL parameter with the given key
@@ -134,8 +154,9 @@ func URLParam(r *http.Request, key string) string {
 }
 
 // NewMux creates and returns a new Mux instance.
+// RedirectTrailingSlash is enabled by default.
 func NewMux() *Mux {
-	return &Mux{}
+	return &Mux{RedirectTrailingSlash: true}
 }
 
 // matchPath compares a route pattern against a request path.

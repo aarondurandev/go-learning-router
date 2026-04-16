@@ -145,6 +145,8 @@ func TestGroupMiddleware(t *testing.T) {
 	}
 }
 
+// TestWildcard verifies that a trailing * segment matches the rest of the path
+// and the captured tail is accessible via URLParam(r, "*").
 func TestWildcard(t *testing.T) {
 	m := NewMux()
 	var gotFile string
@@ -159,5 +161,43 @@ func TestWildcard(t *testing.T) {
 	m.ServeHTTP(rec, req)
 	if gotFile != "docs/test.txt" {
 		t.Errorf("expected *=docs/test.txt, got %s", gotFile)
+	}
+}
+
+// TestTrailingSlash verifies that a request with a mismatched trailing slash
+// is redirected (301) to the alternate path when RedirectTrailingSlash is enabled.
+func TestTrailingSlash(t *testing.T) {
+	m := NewMux()
+	m.Get("/users", func(w http.ResponseWriter, r *http.Request) {})
+	rec := httptest.NewRecorder()
+	req, err := http.NewRequest("GET", "/users/", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m.ServeHTTP(rec, req)
+	if rec.Code != http.StatusMovedPermanently || rec.Header().Get("Location") != "/users" {
+		t.Errorf("expected 301, location /users, got %d location %s", rec.Code, rec.Header().Get("Location"))
+	}
+}
+
+// TestMethodChaining verifies that Route returns a RouteBuilder that can register
+// multiple HTTP methods on the same pattern via chaining.
+func TestMethodChaining(t *testing.T) {
+	m := NewMux()
+	m.Route("/chain").Get(func(w http.ResponseWriter, r *http.Request) {}).Post(func(w http.ResponseWriter, r *http.Request) {})
+	rec1 := httptest.NewRecorder()
+	req1, err := http.NewRequest("GET", "/chain", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m.ServeHTTP(rec1, req1)
+	rec2 := httptest.NewRecorder()
+	req2, err := http.NewRequest("POST", "/chain", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m.ServeHTTP(rec2, req2)
+	if rec1.Code != http.StatusOK || rec2.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d and %d", rec1.Code, rec2.Code)
 	}
 }

@@ -26,6 +26,4 @@ func usersHandlerV1(w http.ResponseWriter, r *http.Request) {
 
 func usersHandlerV2(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "users endpoint v2")
-
 }
-	
