@@ -69,6 +69,32 @@ func TestURLParams(t *testing.T) {
 	}
 }
 
+// TestURLParamInt verifies that URLParamInt returns the param as an int for a valid value
+// and returns an error for a non-integer value.
+func TestURLParamInt(t *testing.T) {
+	m := NewMux()
+	var gotID int
+	var gotErr error
+	m.Get("/users/{id}", func(w http.ResponseWriter, r *http.Request) {
+		gotID, gotErr = URLParamInt(r, "id")
+	})
+	rec1 := httptest.NewRecorder()
+	req1, err := http.NewRequest("GET", "/users/42", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m.ServeHTTP(rec1, req1)
+	if gotID != 42 {
+		t.Errorf("expected id=42, got %d", gotID)
+	}
+	rec2 := httptest.NewRecorder()
+	req2, err := http.NewRequest("GET", "/users/abc", nil)
+	m.ServeHTTP(rec2, req2)
+	if gotErr == nil {
+		t.Errorf("expected error for non-integer param, got nil")
+	}
+}
+
 // TestMiddleware verifies that router-level middleware runs and can modify the response.
 func TestMiddleware(t *testing.T) {
 	m := NewMux()
@@ -89,23 +115,6 @@ func TestMiddleware(t *testing.T) {
 
 	if rec.Header().Get("X-Test") != "true" {
 		t.Errorf("expected X-Test header to be set")
-	}
-}
-
-// TestGroupPrefix verifies that routes registered inside a group are reachable at the prefixed path.
-func TestGroupPrefix(t *testing.T) {
-	m := NewMux()
-	m.Group("/testGroup", func(r Router) {
-		r.Get("/path", func(w http.ResponseWriter, req *http.Request) {})
-	})
-	rec := httptest.NewRecorder()
-	req, err := http.NewRequest("GET", "/testGroup/path", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	m.ServeHTTP(rec, req)
-	if rec.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d", rec.Code)
 	}
 }
 
@@ -142,82 +151,6 @@ func TestGroupMiddleware(t *testing.T) {
 	}
 	if rec2.Header().Get("X-Group") != "" {
 		t.Errorf("expected X-Group header to be absent on non-group route")
-	}
-}
-
-// TestWildcard verifies that a trailing * segment matches the rest of the path
-// and the captured tail is accessible via URLParam(r, "*").
-func TestWildcard(t *testing.T) {
-	m := NewMux()
-	var gotFile string
-	m.Get("/files/*", func(w http.ResponseWriter, r *http.Request) {
-		gotFile = URLParam(r, "*")
-	})
-	rec := httptest.NewRecorder()
-	req, err := http.NewRequest("GET", "/files/docs/test.txt", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	m.ServeHTTP(rec, req)
-	if gotFile != "docs/test.txt" {
-		t.Errorf("expected *=docs/test.txt, got %s", gotFile)
-	}
-}
-
-// TestTrailingSlash verifies that a request with a mismatched trailing slash
-// is redirected (301) to the alternate path when RedirectTrailingSlash is enabled.
-func TestTrailingSlash(t *testing.T) {
-	m := NewMux()
-	m.Get("/users", func(w http.ResponseWriter, r *http.Request) {})
-	rec := httptest.NewRecorder()
-	req, err := http.NewRequest("GET", "/users/", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	m.ServeHTTP(rec, req)
-	if rec.Code != http.StatusMovedPermanently || rec.Header().Get("Location") != "/users" {
-		t.Errorf("expected 301, location /users, got %d location %s", rec.Code, rec.Header().Get("Location"))
-	}
-}
-
-// TestMethodChaining verifies that Route returns a RouteBuilder that can register
-// multiple HTTP methods on the same pattern via chaining.
-func TestMethodChaining(t *testing.T) {
-	m := NewMux()
-	m.Route("/chain").Get(func(w http.ResponseWriter, r *http.Request) {}).Post(func(w http.ResponseWriter, r *http.Request) {})
-	rec1 := httptest.NewRecorder()
-	req1, err := http.NewRequest("GET", "/chain", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	m.ServeHTTP(rec1, req1)
-	rec2 := httptest.NewRecorder()
-	req2, err := http.NewRequest("POST", "/chain", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	m.ServeHTTP(rec2, req2)
-	if rec1.Code != http.StatusOK || rec2.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d and %d", rec1.Code, rec2.Code)
-	}
-}
-
-// TestNamedWildcard verifies that a {name:*} wildcard segment matches the rest of the path
-// and the captured tail is accessible via URLParam using the given name.
-func TestNamedWildcard(t *testing.T) {
-	m := NewMux()
-	var gotFile string
-	m.Get("/files/{path:*}", func(w http.ResponseWriter, r *http.Request) {
-		gotFile = URLParam(r, "path")
-	})
-	rec := httptest.NewRecorder()
-	req, err := http.NewRequest("GET", "/files/docs/test.txt", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	m.ServeHTTP(rec, req)
-	if gotFile != "docs/test.txt" {
-		t.Errorf("expected path=docs/test.txt, got %s", gotFile)
 	}
 }
 
@@ -261,5 +194,98 @@ func TestRouteBuilderMiddleware(t *testing.T) {
 	}
 	if rec2.Header().Get("X-Test-Chain") != "true" {
 		t.Errorf("expected X-Test-Chain header on /chain-test")
+	}
+}
+
+// TestGroupPrefix verifies that routes registered inside a group are reachable at the prefixed path.
+func TestGroupPrefix(t *testing.T) {
+	m := NewMux()
+	m.Group("/testGroup", func(r Router) {
+		r.Get("/path", func(w http.ResponseWriter, req *http.Request) {})
+	})
+	rec := httptest.NewRecorder()
+	req, err := http.NewRequest("GET", "/testGroup/path", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d", rec.Code)
+	}
+}
+
+// TestWildcard verifies that a trailing * segment matches the rest of the path
+// and the captured tail is accessible via URLParam(r, "*").
+func TestWildcard(t *testing.T) {
+	m := NewMux()
+	var gotFile string
+	m.Get("/files/*", func(w http.ResponseWriter, r *http.Request) {
+		gotFile = URLParam(r, "*")
+	})
+	rec := httptest.NewRecorder()
+	req, err := http.NewRequest("GET", "/files/docs/test.txt", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m.ServeHTTP(rec, req)
+	if gotFile != "docs/test.txt" {
+		t.Errorf("expected *=docs/test.txt, got %s", gotFile)
+	}
+}
+
+// TestNamedWildcard verifies that a {name:*} wildcard segment matches the rest of the path
+// and the captured tail is accessible via URLParam using the given name.
+func TestNamedWildcard(t *testing.T) {
+	m := NewMux()
+	var gotFile string
+	m.Get("/files/{path:*}", func(w http.ResponseWriter, r *http.Request) {
+		gotFile = URLParam(r, "path")
+	})
+	rec := httptest.NewRecorder()
+	req, err := http.NewRequest("GET", "/files/docs/test.txt", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m.ServeHTTP(rec, req)
+	if gotFile != "docs/test.txt" {
+		t.Errorf("expected path=docs/test.txt, got %s", gotFile)
+	}
+}
+
+// TestTrailingSlash verifies that a request with a mismatched trailing slash
+// is redirected (301) to the alternate path when RedirectTrailingSlash is enabled.
+func TestTrailingSlash(t *testing.T) {
+	m := NewMux()
+	m.Get("/users", func(w http.ResponseWriter, r *http.Request) {})
+	rec := httptest.NewRecorder()
+	req, err := http.NewRequest("GET", "/users/", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m.ServeHTTP(rec, req)
+	if rec.Code != http.StatusMovedPermanently || rec.Header().Get("Location") != "/users" {
+		t.Errorf("expected 301, location /users, got %d location %s", rec.Code, rec.Header().Get("Location"))
+	}
+}
+
+// TestMethodChaining verifies that Route returns a RouteBuilder that can register
+// multiple HTTP methods on the same pattern via chaining.
+func TestMethodChaining(t *testing.T) {
+	m := NewMux()
+	m.Route("/chain").Get(func(w http.ResponseWriter, r *http.Request) {}).Post(func(w http.ResponseWriter, r *http.Request) {})
+	rec1 := httptest.NewRecorder()
+	req1, err := http.NewRequest("GET", "/chain", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m.ServeHTTP(rec1, req1)
+	rec2 := httptest.NewRecorder()
+	req2, err := http.NewRequest("POST", "/chain", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m.ServeHTTP(rec2, req2)
+	if rec1.Code != http.StatusOK || rec2.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d and %d", rec1.Code, rec2.Code)
 	}
 }

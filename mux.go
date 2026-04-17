@@ -2,7 +2,9 @@ package router
 
 import (
 	"context"
+	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 )
 
@@ -151,6 +153,16 @@ func URLParam(r *http.Request, key string) string {
 		return ""
 	}
 	return params[key]
+}
+
+// URLParamInt returns the URL parameter for the given key as an int.
+// Returns an error if the params are not in the context or the value is not a valid integer.
+func URLParamInt(r *http.Request, key string) (int, error) {
+	params, ok := r.Context().Value(paramsKey).(map[string]string)
+	if !ok {
+		return 0, fmt.Errorf("url params not found in context")
+	}
+	return strconv.Atoi(params[key])
 }
 
 // NewMux creates and returns a new Mux instance.
