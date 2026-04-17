@@ -162,11 +162,13 @@ func NewMux() *Mux {
 // matchPath compares a route pattern against a request path.
 // Segments wrapped in {} are treated as named parameters and captured into the returned map.
 // A trailing * segment matches the rest of the path and is stored under the key "*".
+// A trailing {name:*} segment matches the rest of the path and is stored under the given name.
 // Returns false and nil if the path does not match the pattern.
 func matchPath(pattern string, path string) (bool, map[string]string) {
 	patternSegments := strings.Split(pattern, "/")
 	pathSegments := strings.Split(path, "/")
-	isWildcard := len(patternSegments) > 0 && patternSegments[len(patternSegments)-1] == "*"
+	isWildcard := len(patternSegments) > 0 && patternSegments[len(patternSegments)-1] == "*" ||
+		strings.HasSuffix(patternSegments[len(patternSegments)-1], ":*}")
 	if isWildcard {
 		prefixLen := len(patternSegments) - 1
 		if len(pathSegments) < prefixLen {
@@ -181,7 +183,15 @@ func matchPath(pattern string, path string) (bool, map[string]string) {
 				return false, nil
 			}
 		}
-		params["*"] = strings.Join(pathSegments[prefixLen:], "/")
+		lastSeg := patternSegments[len(patternSegments)-1]
+
+		if strings.HasSuffix(lastSeg, ":*}") {
+			name := lastSeg[1 : len(lastSeg)-3]
+			params[name] = strings.Join(pathSegments[prefixLen:], "/")
+		} else {
+			params["*"] = strings.Join(pathSegments[prefixLen:], "/")
+
+		}
 		return true, params
 	}
 	if len(patternSegments) != len(pathSegments) {

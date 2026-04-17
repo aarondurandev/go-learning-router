@@ -201,3 +201,22 @@ func TestMethodChaining(t *testing.T) {
 		t.Errorf("expected 200, got %d and %d", rec1.Code, rec2.Code)
 	}
 }
+
+// TestNamedWildcard verifies that a {name:*} wildcard segment matches the rest of the path
+// and the captured tail is accessible via URLParam using the given name.
+func TestNamedWildcard(t *testing.T) {
+	m := NewMux()
+	var gotFile string
+	m.Get("/files/{path:*}", func(w http.ResponseWriter, r *http.Request) {
+		gotFile = URLParam(r, "path")
+	})
+	rec := httptest.NewRecorder()
+	req, err := http.NewRequest("GET", "/files/docs/test.txt", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m.ServeHTTP(rec, req)
+	if gotFile != "docs/test.txt" {
+		t.Errorf("expected path=docs/test.txt, got %s", gotFile)
+	}
+}
