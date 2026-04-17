@@ -27,6 +27,7 @@ See [_examples/](_examples/) for working code.
 - Named wildcards use `{name:*}` syntax (`/files/{path:*}`) — same behaviour as `*` but the captured tail is retrieved with `URLParam(r, "path")`, consistent with `{name}` param syntax.
 - `RedirectTrailingSlash` (default `true`) — a request to `/users/` redirects (301) to `/users` (and vice versa) if a matching route exists at the alternate path. Set to `false` to disable.
 - `Route(pattern)` returns a `RouteBuilder` that supports method chaining — `m.Route("/users").Get(h).Post(h)` registers multiple methods on the same pattern in one expression.
+- `RouteBuilder.Use` registers middleware scoped to that builder — `m.Route("/users").Use(authMiddleware).Get(h)` applies `authMiddleware` only to handlers registered through that chain.
 
 ## Roadmap
 
@@ -40,3 +41,4 @@ See [_examples/](_examples/) for working code.
 - [x] Trailing slash redirect
 - [x] Method chaining
 - [x] Named wildcards (`/files/{path:*}`)
+- [x] Middleware on `RouteBuilder`

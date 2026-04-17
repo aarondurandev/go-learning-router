@@ -220,3 +220,46 @@ func TestNamedWildcard(t *testing.T) {
 		t.Errorf("expected path=docs/test.txt, got %s", gotFile)
 	}
 }
+
+// TestRouteBuilderMiddleware verifies that middleware registered via RouteBuilder.Use
+// only applies to routes registered through that builder, not to other routes.
+func TestRouteBuilderMiddleware(t *testing.T) {
+	m := NewMux()
+	m.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("X-Test-Outside", "true")
+			next.ServeHTTP(w, r)
+		})
+	})
+	m.Get("/test", func(w http.ResponseWriter, r *http.Request) {})
+	m.Route("/chain-test").Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("X-Test-Chain", "true")
+			next.ServeHTTP(w, r)
+		})
+	}).Get(func(w http.ResponseWriter, r *http.Request) {})
+
+	rec1 := httptest.NewRecorder()
+	req1, err := http.NewRequest("GET", "/test", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m.ServeHTTP(rec1, req1)
+
+	rec2 := httptest.NewRecorder()
+	req2, err := http.NewRequest("GET", "/chain-test", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m.ServeHTTP(rec2, req2)
+
+	if rec1.Header().Get("X-Test-Outside") != "true" {
+		t.Errorf("expected X-Test-Outside header on /test")
+	}
+	if rec1.Header().Get("X-Test-Chain") != "" {
+		t.Errorf("expected X-Test-Chain header to be absent on /test")
+	}
+	if rec2.Header().Get("X-Test-Chain") != "true" {
+		t.Errorf("expected X-Test-Chain header on /chain-test")
+	}
+}
